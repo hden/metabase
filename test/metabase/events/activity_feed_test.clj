@@ -4,7 +4,7 @@
    [metabase.events.activity-feed :as events.activity-feed]
    [metabase.mbql.schema :as mbql.s]
    [metabase.models
-    :refer [Activity Card Dashboard DashboardCard Metric Pulse Segment]]
+    :refer [ActivityLog Card Dashboard DashboardCard Metric Pulse Segment]]
    [metabase.test :as mt]
    [metabase.util :as u]
    [toucan.db :as db]))
@@ -15,7 +15,7 @@
 
   ([topic model-id]
    (mt/derecordize
-    (db/select-one [Activity :topic :user_id :model :model_id :database_id :table_id :details]
+    (db/select-one [ActivityLog :topic :user_id :model :model_id :database_id :table_id :details]
       :topic    topic
       :model_id model-id
       {:order-by [[:id :desc]]}))))
@@ -23,7 +23,7 @@
 (deftest card-create-test
   (testing :card-create
     (mt/with-temp Card [card {:name "My Cool Card"}]
-      (mt/with-model-cleanup [Activity]
+      (mt/with-model-cleanup [ActivityLog]
         (events.activity-feed/process-activity-event! {:topic :card-create, :item card})
         (is (= {:topic       :card-create
                 :user_id     (mt/user->id :rasta)
@@ -43,7 +43,7 @@
                                     :dataset_query {:database mbql.s/saved-questions-virtual-database-id
                                                     :type     :query
                                                     :query    {:source-table (str "card__" (u/the-id card-1))}}}]]
-        (mt/with-model-cleanup [Activity]
+        (mt/with-model-cleanup [ActivityLog]
           (events.activity-feed/process-activity-event! {:topic :card-create, :item card-2})
           (is (= {:topic       :card-create
                   :user_id     (mt/user->id :rasta)
@@ -59,7 +59,7 @@
     (doseq [dataset? [false true]]
       (testing (if dataset? "Dataset" "Card")
         (mt/with-temp Card [card {:name "My Cool Card" :dataset dataset?}]
-          (mt/with-model-cleanup [Activity]
+          (mt/with-model-cleanup [ActivityLog]
             (events.activity-feed/process-activity-event! {:topic :card-update, :item card})
             (is (= {:topic       :card-update
                     :user_id     (mt/user->id :rasta)
@@ -76,7 +76,7 @@
     (doseq [dataset? [false true]]
       (testing (if dataset? "Dataset" "Card")
         (mt/with-temp Card [card {:name "My Cool Card", :dataset dataset?}]
-          (mt/with-model-cleanup [Activity]
+          (mt/with-model-cleanup [ActivityLog]
             (events.activity-feed/process-activity-event! {:topic :card-delete, :item card})
             (is (= {:topic       :card-delete
                     :user_id     (mt/user->id :rasta)
@@ -91,7 +91,7 @@
 (deftest dashboard-create-event-test
   (testing :dashboard-create
     (mt/with-temp Dashboard [dashboard {:name "My Cool Dashboard"}]
-      (mt/with-model-cleanup [Activity]
+      (mt/with-model-cleanup [ActivityLog]
         (events.activity-feed/process-activity-event! {:topic :dashboard-create, :item dashboard})
         (is (= {:topic       :dashboard-create
                 :user_id     (mt/user->id :rasta)
@@ -105,7 +105,7 @@
 (deftest dashboard-delete-event-test
   (testing :dashboard-delete
     (mt/with-temp Dashboard [dashboard {:name "My Cool Dashboard"}]
-      (mt/with-model-cleanup [Activity]
+      (mt/with-model-cleanup [ActivityLog]
         (events.activity-feed/process-activity-event! {:topic :dashboard-delete, :item dashboard})
         (is (= {:topic       :dashboard-delete
                 :user_id     (mt/user->id :rasta)
@@ -121,7 +121,7 @@
     (mt/with-temp* [Dashboard     [dashboard {:name "My Cool Dashboard"}]
                     Card          [card]
                     DashboardCard [dashcard  {:dashboard_id (:id dashboard), :card_id (:id card)}]]
-      (mt/with-model-cleanup [Activity]
+      (mt/with-model-cleanup [ActivityLog]
         (events.activity-feed/process-activity-event! {:topic :dashboard-add-cards
                                                        :item  {:id        (:id dashboard)
                                                                :actor_id  (mt/user->id :rasta)
@@ -145,7 +145,7 @@
     (mt/with-temp* [Dashboard     [dashboard {:name "My Cool Dashboard"}]
                     Card          [card]
                     DashboardCard [dashcard  {:dashboard_id (:id dashboard), :card_id (:id card)}]]
-      (mt/with-model-cleanup [Activity]
+      (mt/with-model-cleanup [ActivityLog]
         (events.activity-feed/process-activity-event! {:topic :dashboard-remove-cards
                                                        :item  {:id        (:id dashboard)
                                                                :actor_id  (mt/user->id :rasta)
@@ -166,7 +166,7 @@
 
 (deftest install-event-test
   (testing :install
-    (mt/with-model-cleanup [Activity]
+    (mt/with-model-cleanup [ActivityLog]
       (events.activity-feed/process-activity-event! {:topic :install, :item {}})
       (is (= {:topic       :install
               :user_id     nil
@@ -180,7 +180,7 @@
 (deftest metric-create-event-test
   (testing :metric-create
     (mt/with-temp Metric [metric {:table_id (mt/id :venues)}]
-      (mt/with-model-cleanup [Activity]
+      (mt/with-model-cleanup [ActivityLog]
         (events.activity-feed/process-activity-event! {:topic :metric-create, :item metric})
         (is (= {:topic       :metric-create
                 :user_id     (mt/user->id :rasta)
@@ -195,7 +195,7 @@
 (deftest metric-update-event-test
   (testing :metric-update
     (mt/with-temp Metric [metric {:table_id (mt/id :venues)}]
-      (mt/with-model-cleanup [Activity]
+      (mt/with-model-cleanup [ActivityLog]
         (events.activity-feed/process-activity-event! {:topic :metric-update, :item (-> (assoc metric
                                                                                                :actor_id         (mt/user->id :rasta)
                                                                                                :revision_message "update this mofo")
@@ -215,7 +215,7 @@
 (deftest metric-delete-event-test
   (testing :metric-delete
     (mt/with-temp Metric [metric {:table_id (mt/id :venues)}]
-      (mt/with-model-cleanup [Activity]
+      (mt/with-model-cleanup [ActivityLog]
         (events.activity-feed/process-activity-event! {:topic :metric-delete, :item (assoc metric
                                                                                            :actor_id         (mt/user->id :rasta)
                                                                                            :revision_message "deleted")})
@@ -233,7 +233,7 @@
 (deftest pulse-create-event-test
   (testing :pulse-create
     (mt/with-temp Pulse [pulse]
-      (mt/with-model-cleanup [Activity]
+      (mt/with-model-cleanup [ActivityLog]
         (events.activity-feed/process-activity-event! {:topic :pulse-create, :item pulse})
         (is (= {:topic       :pulse-create
                 :user_id     (mt/user->id :rasta)
@@ -247,7 +247,7 @@
 (deftest pulse-delete-event-test
   (testing :pulse-delete
     (mt/with-temp Pulse [pulse]
-      (mt/with-model-cleanup [Activity]
+      (mt/with-model-cleanup [ActivityLog]
         (events.activity-feed/process-activity-event! {:topic :pulse-delete, :item pulse})
         (is (= {:topic       :pulse-delete
                 :user_id     (mt/user->id :rasta)
@@ -261,7 +261,7 @@
 (deftest segment-create-event-test
   (testing :segment-create
     (mt/with-temp Segment [segment]
-      (mt/with-model-cleanup [Activity]
+      (mt/with-model-cleanup [ActivityLog]
         (events.activity-feed/process-activity-event! {:topic :segment-create, :item segment})
         (is (= {:topic       :segment-create
                 :user_id     (mt/user->id :rasta)
@@ -276,7 +276,7 @@
 (deftest segment-update-event-test
   (testing :segment-update
     (mt/with-temp Segment [segment]
-      (mt/with-model-cleanup [Activity]
+      (mt/with-model-cleanup [ActivityLog]
         (events.activity-feed/process-activity-event! {:topic :segment-update, :item (-> segment
                                                                                          (assoc :actor_id         (mt/user->id :rasta)
                                                                                                 :revision_message "update this mofo")
@@ -296,7 +296,7 @@
 (deftest segment-delete-event-test
   (testing :segment-delete
     (mt/with-temp Segment [segment]
-      (mt/with-model-cleanup [Activity]
+      (mt/with-model-cleanup [ActivityLog]
         (events.activity-feed/process-activity-event! {:topic :segment-delete
                                                        :item (assoc segment
                                                                     :actor_id         (mt/user->id :rasta)
@@ -315,7 +315,7 @@
 (deftest user-login-event-test
   (testing :user-login
     ;; TODO - what's the difference between `user-login` / `user-joined`?
-    (mt/with-model-cleanup [Activity]
+    (mt/with-model-cleanup [ActivityLog]
       (events.activity-feed/process-activity-event! {:topic :user-login
                                                      :item  {:user_id     (mt/user->id :rasta)
                                                              :session_id  (str (java.util.UUID/randomUUID))
