@@ -10,8 +10,7 @@
    [metabase.db.data-migrations :refer [DataMigrations]]
    [metabase.db.setup :as mdb.setup]
    [metabase.models
-    :refer [Activity
-            ActivityLog
+    :refer [ActivityLog
             ApplicationPermissionsRevision
             BookmarkOrdering
             Card
@@ -104,7 +103,6 @@
    BookmarkOrdering
    DashboardCard
    DashboardCardSeries
-   Activity
    ActivityLog
    Pulse
    PulseCard

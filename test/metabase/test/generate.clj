@@ -4,7 +4,7 @@
    [clojure.test.check.generators :as gen]
    [java-time :as t]
    [metabase.mbql.util :as mbql.u]
-   [metabase.models :refer [Activity Card Collection Dashboard DashboardCard DashboardCardSeries Database
+   [metabase.models :refer [ActivityLog Card Collection Dashboard DashboardCard DashboardCardSeries Database
                             Dimension Field Metric NativeQuerySnippet PermissionsGroup
                             PermissionsGroupMembership Pulse PulseCard PulseChannel PulseChannelRecipient
                             Segment Table Timeline TimelineEvent User]]
@@ -180,10 +180,10 @@
    :core-user                    {:prefix  :u
                                   :spec    ::core-user
                                   :insert! {:model User}}
-   :activity                     {:prefix    :ac
+   :activity-log                 {:prefix    :ac
                                   :spec      ::activity
                                   :relations {:user_id [:core-user :id]}
-                                  :insert!   {:model Activity}}
+                                  :insert!   {:model ActivityLog}}
    :database                     {:prefix  :db
                                   :spec    ::database
                                   :insert! {:model Database}}
@@ -216,15 +216,15 @@
    :dashboard-card-series        {:prefix  :dcs
                                   :spec    ::dashboard_card_series
                                   :insert! {:model DashboardCardSeries}}
-   :dimension                    {:prefix  :dim
-                                  :spec    ::dimension
-                                  :insert! {:model Dimension}
+   :dimension                    {:prefix    :dim
+                                  :spec      ::dimension
+                                  :insert!   {:model Dimension}
                                   :relations {:field_id                [:field :id]
                                               :human_readable_field_id [:field :id]}}
-   :field                        {:prefix      :field
-                                  :spec        ::field
-                                  :insert!     {:model Field}
-                                  :relations   {:table_id [:table :id]}}
+   :field                        {:prefix    :field
+                                  :spec      ::field
+                                  :insert!   {:model Field}
+                                  :relations {:table_id [:table :id]}}
    :metric                       {:prefix    :metric
                                   :spec      ::metric
                                   :insert!   {:model Metric}
@@ -242,8 +242,8 @@
    :pulse-card                   {:prefix    :pulse-card
                                   :spec      ::pulse-card
                                   :insert!   {:model PulseCard}
-                                  :relations {:pulse_id [:pulse :id]
-                                              :card_id  [:card :id]
+                                  :relations {:pulse_id          [:pulse :id]
+                                              :card_id           [:card :id]
                                               :dashboard_card_id [:dashboard-card :id]}}
    :pulse-channel                {:prefix    :pulse-channel
                                   :spec      ::pulse-channel
