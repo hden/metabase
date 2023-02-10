@@ -7,9 +7,9 @@
   TODO - We should rename this namespace to `metabase.driver.test-extensions` or something like that."
   (:require
    [clojure.string :as str]
-   [clojure.tools.logging :as log]
    [clojure.tools.reader.edn :as edn]
    [environ.core :refer [env]]
+   [hawk.init]
    [medley.core :as m]
    [metabase.db :as mdb]
    [metabase.driver :as driver]
@@ -19,10 +19,10 @@
    [metabase.models.table :refer [Table]]
    [metabase.plugins.classloader :as classloader]
    [metabase.query-processor :as qp]
-   [metabase.test-runner.init :as test-runner.init]
    [metabase.test.initialize :as initialize]
    [metabase.util :as u]
    [metabase.util.date-2 :as u.date]
+   [metabase.util.log :as log]
    [metabase.util.schema :as su]
    [potemkin.types :as p.types]
    [pretty.core :as pretty]
@@ -162,7 +162,7 @@
   "Like `driver/the-driver`, but guaranteed to return a driver with test extensions loaded, throwing an Exception
   otherwise. Loads driver and test extensions automatically if not already done."
   [driver]
-  (test-runner.init/assert-tests-are-not-initializing (pr-str (list 'the-driver-with-test-extensions driver)))
+  (hawk.init/assert-tests-are-not-initializing (pr-str (list 'the-driver-with-test-extensions driver)))
   (initialize/initialize-if-needed! :plugins)
   (let [driver (driver/the-initialized-driver driver)]
     (load-test-extensions-namespace-if-needed driver)

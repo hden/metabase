@@ -1,7 +1,7 @@
 (ns metabase.models.pulse
   "Notifications are ways to deliver the results of Questions to users without going through the normal Metabase UI. At
   the time of this writing, there are two delivery mechanisms for Notifications -- email and Slack notifications;
-  these destinations are known as 'Channels'. Notifications themselves are futher divied into two categories --
+  these destinations are known as 'Channels'. Notifications themselves are further divided into two categories --
   'Pulses', which are sent at specified intervals, and 'Alerts', which are sent when certain conditions are met (such
   as a query returning results).
 
@@ -18,7 +18,6 @@
    [clojure.string :as str]
    [medley.core :as m]
    [metabase.api.common :as api]
-   [metabase.db.query :as mdb.query]
    [metabase.events :as events]
    [metabase.models.card :refer [Card]]
    [metabase.models.collection :as collection]
@@ -35,7 +34,8 @@
    [schema.core :as s]
    [toucan.db :as db]
    [toucan.hydrate :refer [hydrate]]
-   [toucan.models :as models]))
+   [toucan.models :as models]
+   [toucan2.core :as t2]))
 
 ;;; ----------------------------------------------- Entity & Lifecycle -----------------------------------------------
 
@@ -225,18 +225,18 @@
 
 (s/defn ^:private cards* :- [HybridPulseCard]
   [notification-or-id]
-  (map (partial models/do-post-select Card)
-       (mdb.query/query
-        {:select    [:c.id :c.name :c.description :c.collection_id :c.display :pc.include_csv :pc.include_xls
-                     :pc.dashboard_card_id :dc.dashboard_id [nil :parameter_mappings]] ;; :dc.parameter_mappings - how do you select this?
-         :from      [[:pulse :p]]
-         :join      [[:pulse_card :pc] [:= :p.id :pc.pulse_id]
-                     [:report_card :c] [:= :c.id :pc.card_id]]
-         :left-join [[:report_dashboardcard :dc] [:= :pc.dashboard_card_id :dc.id]]
-         :where     [:and
-                     [:= :p.id (u/the-id notification-or-id)]
-                     [:= :c.archived false]]
-         :order-by [[:pc.position :asc]]})))
+  (t2/select
+   Card
+   {:select    [:c.id :c.name :c.description :c.collection_id :c.display :pc.include_csv :pc.include_xls
+                :pc.dashboard_card_id :dc.dashboard_id [nil :parameter_mappings]] ;; :dc.parameter_mappings - how do you select this?
+    :from      [[:pulse :p]]
+    :join      [[:pulse_card :pc] [:= :p.id :pc.pulse_id]
+                [:report_card :c] [:= :c.id :pc.card_id]]
+    :left-join [[:report_dashboardcard :dc] [:= :pc.dashboard_card_id :dc.id]]
+    :where     [:and
+                [:= :p.id (u/the-id notification-or-id)]
+                [:= :c.archived false]]
+    :order-by [[:pc.position :asc]]}))
 
 (mi/define-simple-hydration-method cards
   :cards
@@ -300,7 +300,7 @@
           notification->alert))
 
 (defn- query-as [model query]
-  (db/do-post-select model (mdb.query/query query)))
+  (t2/select model query))
 
 (s/defn retrieve-alerts :- [(mi/InstanceOf Pulse)]
   "Fetch all Alerts."

@@ -5,9 +5,27 @@
    [java-time :as t]
    [metabase-enterprise.serialization.test-util :as ts]
    [metabase-enterprise.serialization.v2.extract :as extract]
-   [metabase.models :refer [Card Collection Dashboard DashboardCard Database Dimension Field FieldValues Metric
-                            NativeQuerySnippet Pulse PulseCard Segment Table Timeline TimelineEvent User]]
+   [metabase.models
+    :refer [Card
+            Collection
+            Dashboard
+            DashboardCard
+            Database
+            Dimension
+            Field
+            FieldValues
+            Metric
+            NativeQuerySnippet
+            Pulse
+            PulseCard
+            Segment
+            Table
+            Timeline
+            TimelineEvent
+            User]]
+   [metabase.models.action :as action]
    [metabase.models.serialization.base :as serdes.base]
+   [metabase.test :as mt]
    [schema.core :as s]
    [toucan.db :as db])
   (:import [java.time LocalDateTime OffsetDateTime]))
@@ -727,6 +745,116 @@
                       {:model "Field"      :id "Some Field"}]}
                    (set (serdes.base/serdes-dependencies ser))))))))))
 
+(deftest implicit-action-test
+  (ts/with-empty-h2-app-db
+    (ts/with-temp-dpc [User       [{ann-id       :id} {:first_name "Ann"
+                                                       :last_name  "Wilson"
+                                                       :email      "ann@heart.band"}]
+                       Database   [{db-id :id :as db} {:name "My Database"}]]
+      (mt/with-db db
+        (mt/with-actions [{card-id-1  :id
+                           card-eid-1 :entity_id} {:name          "Source question"
+                                                   :database_id   db-id
+                                                   :dataset       true
+                                                   :query_type    :native
+                                                   :dataset_query (mt/native-query {:native "select 1"})
+                                                   :creator_id    ann-id}
+                          {:keys [action-id]} {:name          "My Action"
+                                               :type          :implicit
+                                               :kind          "row/update"
+                                               :creator_id    ann-id
+                                               :model_id      card-id-1}]
+          (let [action (action/select-one :id action-id)]
+            (testing "implicit action"
+              (let [ser (serdes.base/extract-one "Action" {} action)]
+                (is (schema= {:serdes/meta (s/eq [{:model "Action" :id (:entity_id action) :label "my_action"}])
+                              :creator_id  (s/eq "ann@heart.band")
+                              :type        (s/eq :implicit)
+                              :kind        (s/eq "row/update")
+                              :created_at  OffsetDateTime
+                              :model_id    (s/eq card-eid-1)
+                              s/Keyword    s/Any}
+                             ser))
+                (is (not (contains? ser :id)))
+
+                (testing "depends on the Model"
+                  (is (= #{[{:model "Card" :id card-eid-1}]}
+                         (set (serdes.base/serdes-dependencies ser)))))))))))))
+
+(deftest http-action-test
+  (ts/with-empty-h2-app-db
+    (ts/with-temp-dpc [User       [{ann-id       :id} {:first_name "Ann"
+                                                       :last_name  "Wilson"
+                                                       :email      "ann@heart.band"}]
+                       Database   [{db-id :id :as db} {:name "My Database"}]]
+      (mt/with-db db
+        (mt/with-actions [{card-id-1  :id
+                           card-eid-1 :entity_id} {:name          "Source question"
+                                                   :database_id   db-id
+                                                   :dataset       true
+                                                   :query_type    :native
+                                                   :dataset_query (mt/native-query {:native "select 1"})
+                                                   :creator_id    ann-id}
+                          {:keys [action-id]} {:name          "My Action"
+                                               :type          :http
+                                               :template      {}
+                                               :creator_id    ann-id
+                                               :model_id      card-id-1}]
+          (let [action (action/select-one :id action-id)]
+            (testing "action"
+              (let [ser (serdes.base/extract-one "Action" {} action)]
+                (is (schema= {:serdes/meta (s/eq [{:model "Action" :id (:entity_id action) :label "my_action"}])
+                              :creator_id  (s/eq "ann@heart.band")
+                              :created_at  OffsetDateTime
+                              :template    (s/eq {})
+                              :model_id    (s/eq card-eid-1)
+                              s/Keyword    s/Any}
+                             ser))
+                (is (not (contains? ser :id)))
+
+                (testing "depends on the Model"
+                  (is (= #{[{:model "Card" :id card-eid-1}]}
+                         (set (serdes.base/serdes-dependencies ser)))))))))))))
+
+(deftest query-action-test
+  (ts/with-empty-h2-app-db
+    (ts/with-temp-dpc [User       [{ann-id       :id} {:first_name "Ann"
+                                                       :last_name  "Wilson"
+                                                       :email      "ann@heart.band"}]
+                       Database   [{db-id :id :as db} {:name "My Database"}]]
+      (mt/with-db db
+        (mt/with-actions [{card-id-1  :id
+                           card-eid-1 :entity_id} {:name          "Source question"
+                                                   :database_id   db-id
+                                                   :dataset       true
+                                                   :query_type    :native
+                                                   :dataset_query (mt/native-query {:native "select 1"})
+                                                   :creator_id    ann-id}
+                          {:keys [action-id]} {:name          "My Action"
+                                               :type          :query
+                                               :dataset_query {:type "native", :native {:native "select 1"}, :database db-id}
+                                               :database_id   db-id
+                                               :creator_id    ann-id
+                                               :model_id      card-id-1}]
+          (let [action (action/select-one :id action-id)]
+            (testing "action"
+              (let [ser (serdes.base/extract-one "Action" {} action)]
+                (is (schema= {:serdes/meta   (s/eq [{:model "Action"
+                                                     :id    (:entity_id action)
+                                                     :label "my_action"}])
+                              :creator_id    (s/eq "ann@heart.band")
+                              :created_at    OffsetDateTime
+                              :dataset_query (s/eq {:type "native", :native {:native "select 1"}, :database db-id})
+                              :model_id      (s/eq card-eid-1)
+                              s/Keyword      s/Any}
+                             ser))
+                (is (not (contains? ser :id)))
+
+                (testing "depends on the Model and Database"
+                  (is (= #{[{:model "Database" :id "My Database"}]
+                           [{:model "Card" :id card-eid-1}]}
+                         (set (serdes.base/serdes-dependencies ser)))))))))))))
+
 (deftest field-values-test
   (ts/with-empty-h2-app-db
     (ts/with-temp-dpc [Database   [{db-id        :id}        {:name "My Database"}]
@@ -1016,7 +1144,7 @@
                        Table      [{schema-id    :id}         {:name        "Schema'd Table"
                                                                :db_id       db-id
                                                                :schema      "PUBLIC"}]
-                       Field      [_                          {:name "Other Field" :table_id schema-id}]
+                       Field      [{field-id :id}             {:name "Other Field" :table_id schema-id}]
 
                        ;; One dashboard and three cards in each of the three collections:
                        ;; Two cards contained in the dashboard and one freestanding.
@@ -1080,6 +1208,7 @@
                                     dash3-eid    :entity_id}  {:name          "Dashboard 3"
                                                                :collection_id coll3-id
                                                                :creator_id    mark-id}]
+
                        Card       [{c3-1-id  :id
                                     c3-1-eid :entity_id}      {:name          "Question 3-1"
                                                                :database_id   db-id
@@ -1101,7 +1230,38 @@
                        DashboardCard [_                       {:card_id      c3-1-id
                                                                :dashboard_id dash3-id}]
                        DashboardCard [_                       {:card_id      c3-2-id
-                                                               :dashboard_id dash3-id}]]
+                                                               :dashboard_id dash3-id}]
+
+                       ;; Fourth dashboard where its parameter's source is another card
+                       Collection   [{coll4-id   :id
+                                      coll4-eid  :entity_id}    {:name     "Forth collection"}]
+                       Card         [{c4-id  :id
+                                      c4-eid :entity_id}        {:name          "Question 4-1"
+                                                                 :database_id   db-id
+                                                                 :table_id      no-schema-id
+                                                                 :collection_id coll4-id
+                                                                 :creator_id    mark-id
+                                                                 :parameters    [{:id                   "abc"
+                                                                                  :type                 "category"
+                                                                                  :name                 "CATEGORY"
+                                                                                  :values_source_type   "card"
+                                                                                  ;; card_id is in a different collection with dashboard's collection
+                                                                                  :values_source_config {:card_id     c1-1-id
+                                                                                                         :value_field [:field field-id nil]}}]}]
+
+                       Dashboard    [{dash4-id     :id
+                                      dash4-eid    :entity_id}  {:name          "Dashboard 4"
+                                                                 :collection_id coll4-id
+                                                                 :creator_id    mark-id
+                                                                 :parameters    [{:id                   "def"
+                                                                                  :type                 "category"
+                                                                                  :name                 "CATEGORY"
+                                                                                  :values_source_type   "card"
+                                                                                  ;; card_id is in a different collection with dashboard's collection
+                                                                                  :values_source_config {:card_id     c1-2-id
+                                                                                                         :value_field [:field field-id nil]}}]}]
+                       DashboardCard [_                       {:card_id      c4-id
+                                                               :dashboard_id dash4-id}]]
 
       (testing "selecting a dashboard gets all cards its dashcards depend on"
         (testing "grandparent dashboard"
@@ -1126,7 +1286,18 @@
                    [{:model "Card"      :id c3-2-eid  :label "question_3_2"}]}
                  (->> (extract/extract-subtrees {:targets [["Dashboard" dash3-id]]})
                       (map serdes.base/serdes-path)
-                      set)))))
+                      set))))
+
+        (testing "a dashboard that has parameter source is another card"
+          (is (=? #{[{:model "Dashboard"     :id dash4-eid :label "dashboard_4"}]
+                    [{:model "Card"          :id c4-eid  :label "question_4_1"}]
+                    ;; card that parameter on dashboard linked to
+                    [{:model "Card"          :id c1-1-eid  :label "question_1_1"}]
+                    ;; card that the card on dashboard linked to
+                    [{:model "Card"          :id c1-2-eid  :label "question_1_2"}]}
+               (->> (extract/extract-subtrees {:targets [["Dashboard" dash4-id]]})
+                    (map serdes.base/serdes-path)
+                    set)))))
 
       (testing "selecting a collection gets all its contents"
         (let [grandchild-paths  #{[{:model "Collection"    :id coll3-eid :label "grandchild_collection"}]
@@ -1158,7 +1329,19 @@
             (is (= (set/union grandparent-paths middle-paths grandchild-paths)
                    (->> (extract/extract-subtrees {:targets [["Collection" coll1-id]]})
                         (map serdes.base/serdes-path)
-                        set)))))))))
+                        set))))
+
+          (testing "select a collection where a dashboard contains parameter's source is card from another collection"
+            (is (=? #{[{:model "Collection"    :id coll4-eid :label "forth_collection"}]
+                      [{:model "Dashboard"     :id dash4-eid :label "dashboard_4"}]
+                      [{:model "Card"          :id c4-eid  :label "question_4_1"}]
+                      ;; card that parameter on dashboard linked to
+                      [{:model "Card"          :id c1-1-eid  :label "question_1_1"}]
+                      ;; card that the card on dashboard linked to
+                      [{:model "Card"          :id c1-2-eid  :label "question_1_2"}]}
+                 (->> (extract/extract-subtrees {:targets [["Collection" coll4-id]]})
+                      (map serdes.base/serdes-path)
+                      set)))))))))
 
 (deftest foreign-key-field-test
   (ts/with-empty-h2-app-db

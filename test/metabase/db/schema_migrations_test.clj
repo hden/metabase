@@ -26,6 +26,7 @@
             Database
             Dimension
             Field
+            Permissions
             Pulse
             Setting
             Table
@@ -36,7 +37,8 @@
    [metabase.test.fixtures :as fixtures]
    [metabase.test.util :as tu]
    [metabase.util :as u]
-   [toucan.db :as db])
+   [toucan.db :as db]
+   [toucan2.core :as t2])
   (:import
    (java.sql Connection)
    (java.util UUID)))
@@ -287,7 +289,7 @@
                            ["setting" "value"]
                            ["task_history" "task_details"]
                            ["view_log" "metadata"]]]
-        (with-open [conn (jdbc/get-connection (db/connection))]
+        (t2/with-connection [conn]
           (doseq [[tbl-nm col-nms] (group-by first all-text-cols)]
             (let [^String exp-type (case driver/*driver*
                                      :mysql "longtext"
@@ -311,7 +313,7 @@
 (deftest convert-query-cache-result-to-blob-test
   (testing "the query_cache.results column was changed to"
     (impl/test-migrations ["v42.00-064"] [migrate!]
-      (with-open [conn (jdbc/get-connection (db/connection))]
+      (t2/with-connection [^java.sql.Connection conn]
         (when (= :mysql driver/*driver*)
           ;; simulate the broken app DB state that existed prior to the fix from #16095
           (with-open [stmt (.prepareStatement conn "ALTER TABLE query_cache MODIFY results BLOB NULL;")]
@@ -479,10 +481,7 @@
                                                                  :database_id            1
                                                                  :collection_id          nil}]}))}]
 
-              :let [table-name-keyword (u/prog1 (:table model)
-                                         ;; once we switch to Toucan 2 this will fail and make this easier to
-                                         ;; fix
-                                         (assert (keyword? <>)))]]
+              :let [table-name-keyword (t2/table-name model)]]
         (testing (format "create %s Collection for %s in the Root Collection"
                          (pr-str collection-name)
                          (name model))
@@ -833,3 +832,35 @@
           (is (= #{"F1 D2"
                    "F2 D1"}
                  (db/select-field :name Dimension {:order-by [[:id :asc]]}))))))))
+
+(deftest clean-up-gtap-table-test
+  (testing "Migrations v46.00-064 to v46.00-067: rename `group_table_access_policy` table, add `permission_id` FK,
+           and clean up orphaned rows"
+    (impl/test-migrations ["v46.00-064" "v46.00-067"] [migrate!]
+      (let [db-id    (db/simple-insert! Database {:name       "DB"
+                                                  :engine     "h2"
+                                                  :created_at :%now
+                                                  :updated_at :%now
+                                                  :details    "{}"})
+            table-id (db/simple-insert! Table {:db_id      db-id
+                                               :name       "Table"
+                                               :created_at :%now
+                                               :updated_at :%now
+                                               :active     true})
+            _        (db/execute! {:insert-into :group_table_access_policy
+                                   :values      [{:group_id             1
+                                                  :table_id             table-id
+                                                  :attribute_remappings "{\"foo\", 1}"}
+                                                 {:group_id             2
+                                                  :table_id             table-id
+                                                  :attribute_remappings "{\"foo\", 1}"}]})
+            perm-id  (db/simple-insert! Permissions {:group_id 1
+                                                     :object   "/db/1/schema/PUBLIC/table/1/query/segmented/"})]
+          ;; Two rows are present in `group_table_access_policy`
+          (is (= [{:id 1, :group_id 1, :table_id table-id, :card_id nil, :attribute_remappings "{\"foo\", 1}"}
+                  {:id 2, :group_id 2, :table_id table-id, :card_id nil, :attribute_remappings "{\"foo\", 1}"}]
+                 (mdb.query/query {:select [:*] :from [:group_table_access_policy]})))
+          (migrate!)
+          ;; Only the sandbox with a corresponding `Permissions` row is present, and the table is renamed to `sandboxes`
+          (is (= [{:id 1, :group_id 1, :table_id table-id, :card_id nil, :attribute_remappings "{\"foo\", 1}", :permission_id perm-id}]
+                 (mdb.query/query {:select [:*] :from [:sandboxes]})))))))

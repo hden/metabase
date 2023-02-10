@@ -8,6 +8,8 @@
    [clojure.data]
    [clojure.test :refer :all]
    [environ.core :as env]
+   [hawk.init]
+   [hawk.parallel]
    [humane-are.core :as humane-are]
    [java-time :as t]
    [medley.core :as m]
@@ -27,8 +29,6 @@
    [metabase.query-processor.test-util :as qp.test-util]
    [metabase.server.middleware.session :as mw.session]
    [metabase.test-runner.assert-exprs :as test-runner.assert-exprs]
-   [metabase.test-runner.init :as test-runner.init]
-   [metabase.test-runner.parallel :as test-runner.parallel]
    [metabase.test.data :as data]
    [metabase.test.data.datasets :as datasets]
    [metabase.test.data.env :as tx.env]
@@ -43,6 +43,7 @@
    [metabase.test.util.i18n :as i18n.tu]
    [metabase.test.util.log :as tu.log]
    [metabase.test.util.timezone :as test.tz]
+   [metabase.util.log :as log]
    [pjstadig.humane-test-output :as humane-test-output]
    [potemkin :as p]
    [toucan.db :as db]
@@ -88,6 +89,7 @@
 (p/import-vars
  [actions.test-util
   with-actions
+  with-actions-disabled
   with-actions-enabled
   with-actions-test-data
   with-actions-test-data-tables
@@ -273,7 +275,7 @@
 ;;; TODO -- move all the stuff below into some other namespace and import it here.
 
 (defn do-with-clock [clock thunk]
-  (test-runner.parallel/assert-test-is-not-parallel "with-clock")
+  (hawk.parallel/assert-test-is-not-parallel "with-clock")
   (testing (format "\nsystem clock = %s" (pr-str clock))
     (let [clock (cond
                   (t/clock? clock)           clock
@@ -281,6 +283,7 @@
                   :else                      (throw (Exception. (format "Invalid clock: ^%s %s"
                                                                         (.getName (class clock))
                                                                         (pr-str clock)))))]
+      #_{:clj-kondo/ignore [:discouraged-var]}
       (t/with-clock clock
         (thunk)))))
 
@@ -370,7 +373,7 @@
                                  (when run (run))
                                  (qp.context/reducef rff context (assoc metadata :pre query) rows)
                                  (catch Throwable e
-                                   (println "Error in test-qp-middleware runf:" e)
+                                   (log/errorf "Error in test-qp-middleware runf: %s" e)
                                    (throw e))))}
                    context)]
      (if async?
@@ -405,7 +408,7 @@
           ;; TIMESTAMP columns (which only have second resolution by default)
           (dissoc things-in-both :created_at :updated_at)))))
    (fn [toucan-model]
-     (test-runner.init/assert-tests-are-not-initializing (list 'object-defaults (symbol (name toucan-model))))
+     (hawk.init/assert-tests-are-not-initializing (list 'object-defaults (symbol (name toucan-model))))
      (initialize/initialize-if-needed! :db)
      (db/resolve-model toucan-model))))
 

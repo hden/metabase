@@ -107,6 +107,7 @@
                                         :group_id             (s/eq (u/the-id &group))
                                         :table_id             (s/eq (u/the-id db-2-table))
                                         :card_id              (s/eq nil)
+                                        :permission_id        (s/eq nil)
                                         :attribute_remappings (s/eq nil)}
                                        "GTAP")]
                                (db/select GroupTableAccessPolicy
@@ -117,6 +118,7 @@
                                         :group_id             (s/eq (u/the-id other-group))
                                         :table_id             (s/eq (mt/id :venues))
                                         :card_id              (s/eq nil)
+                                        :permission_id        (s/eq nil)
                                         :attribute_remappings (s/eq nil)}
                                        "GTAP")]
                                (db/select GroupTableAccessPolicy :group_id (u/the-id other-group)))))))))))))
@@ -151,8 +153,7 @@
 (deftest persistence-and-permissions
   (mt/with-model-cleanup [PersistedInfo]
     (testing "Queries from cache if not sandboxed"
-      (mt/with-current-user
-        (mt/user->id :rasta)
+      (mt/with-current-user (mt/user->id :rasta)
         (mt/with-temp*
           [Card [card {:dataset_query (mt/mbql-query venues)
                        :dataset true

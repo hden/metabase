@@ -2,13 +2,19 @@
   "`/api/action/` endpoints."
   (:require
    [compojure.core :as compojure :refer [POST]]
+   [metabase.actions :as actions]
    [metabase.actions.http-action :as http-action]
    [metabase.api.common :as api]
-   [metabase.models :refer [Action Card HTTPAction ImplicitAction QueryAction]]
+   [metabase.api.common.validation :as validation]
+   [metabase.models :refer [Action Card Database]]
    [metabase.models.action :as action]
+   [metabase.util :as u]
+   [metabase.util.i18n :refer [tru]]
    [metabase.util.malli :as mu]
    [toucan.db :as db]
-   [toucan.hydrate :refer [hydrate]]))
+   [toucan.hydrate :refer [hydrate]])
+  (:import
+   (java.util UUID)))
 
 (def ^:private json-query-schema
   [:and
@@ -57,17 +63,11 @@
       (hydrate :creator)
       api/read-check))
 
-(defn- type->model [existing-action-type]
-  (case existing-action-type
-    :http     HTTPAction
-    :implicit ImplicitAction
-    :query    QueryAction))
-
 #_{:clj-kondo/ignore [:deprecated-var]}
 (api/defendpoint-schema DELETE "/:action-id"
   [action-id]
-  (let [{existing-action-type :type} (api/write-check Action action-id)]
-    (db/delete! (type->model existing-action-type) :action_id action-id))
+  (api/write-check Action action-id)
+  (db/delete! Action :id action-id)
   api/generic-204-no-content)
 
 (api/defendpoint POST "/"
@@ -89,7 +89,15 @@
    template               [:maybe http-action-template]
    response_handle        [:maybe json-query-schema]
    error_handle           [:maybe json-query-schema]}
+
   (api/write-check Card model_id)
+  (when (and (nil? database_id)
+             (= "query" type))
+    (throw (ex-info (tru "Must provide a database_id for query actions")
+                    {:type        type
+                     :status-code 400})))
+  (when database_id
+    (actions/check-actions-enabled! (db/select-one Database :id database_id)))
   (let [action-id (action/insert! (assoc action :creator_id api/*current-user-id*))]
     (if action-id
       (first (action/actions-with-implicit-params nil :id action-id))
@@ -115,18 +123,34 @@
    template               [:maybe http-action-template]
    type                   [:maybe supported-action-type]
    visualization_settings [:maybe map?]}
-  (let [action-columns       [:type :name :description :parameters :parameter_mappings :visualization_settings]
-        existing-action      (api/write-check Action id)
-        existing-action-type (:type existing-action)
-        existing-model       (type->model existing-action-type)]
-    (when-let [action-row (not-empty (select-keys action action-columns))]
-      (db/update! Action id action-row))
-    (when-let [type-row (not-empty (apply dissoc action action-columns))]
-      (if (and (:type action) (not= (:type action) existing-action-type))
-        (let [new-model (type->model (:type action))]
-          (db/delete! existing-model id)
-          (db/insert! new-model (assoc type-row :action_id id)))
-        (db/update! existing-model id type-row))))
+  (let [existing-action (api/write-check Action id)]
+    (action/update! (assoc action :id id) existing-action))
   (first (action/actions-with-implicit-params nil :id id)))
+
+(api/defendpoint POST "/:id/public_link"
+  "Generate publicly-accessible links for this Action. Returns UUID to be used in public links. (If this
+  Action has already been shared, it will return the existing public link rather than creating a new one.) Public
+  sharing must be enabled."
+  [id]
+  {id pos-int?}
+  (api/check-superuser)
+  (validation/check-public-sharing-enabled)
+  (api/read-check Action id)
+  {:uuid (or (db/select-one-field :public_uuid Action :id id)
+             (u/prog1 (str (UUID/randomUUID))
+                      (db/update! Action id
+                                  :public_uuid <>
+                                  :made_public_by_id api/*current-user-id*)))})
+
+(api/defendpoint DELETE "/:id/public_link"
+  "Delete the publicly-accessible link to this Dashboard."
+  [id]
+  {id pos-int?}
+  ;; check the /application/setting permission, not superuser because removing a public link is possible from /admin/settings
+  (validation/check-has-application-permission :setting)
+  (validation/check-public-sharing-enabled)
+  (api/check-exists? Action :id id, :public_uuid [:not= nil])
+  (db/update! Action id :public_uuid nil, :made_public_by_id nil)
+  {:status 204, :body nil})
 
 (api/define-routes)
