@@ -150,7 +150,6 @@ class SettingsEditorApp extends Component {
     if (activeSection.component) {
       return (
         <activeSection.component
-          groups={this.props.groups}
           elements={activeSection.settings}
           settingValues={settingValues}
           updateSetting={this.updateSetting}
