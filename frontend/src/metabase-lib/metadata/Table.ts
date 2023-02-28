@@ -35,6 +35,16 @@ class TableInner extends Base {
   metadata?: Metadata;
   db?: Database | undefined | null;
 
+  constructor(object) {
+    super(object);
+
+    if (window.IS_STORYBOOK) {
+      for (const property in object) {
+        this[property] = object[property];
+      }
+    }
+  }
+
   getPlainObject(): ITable {
     return this._plainObject;
   }
@@ -168,26 +178,6 @@ class TableInner extends Base {
     const newTable = new Table(this);
     newTable._plainObject = plainObject;
     return newTable;
-  }
-
-  /**
-   * @private
-   * @param {string} description
-   * @param {Database} db
-   * @param {Schema?} schema
-   * @param {SchemaName} [schema_name]
-   * @param {Field[]} fields
-   * @param {EntityType} entity_type
-   */
-
-  /* istanbul ignore next */
-  _constructor(description, db, schema, schema_name, fields, entity_type) {
-    this.description = description;
-    this.db = db;
-    this.schema = schema;
-    this.schema_name = schema_name;
-    this.fields = fields;
-    this.entity_type = entity_type;
   }
 }
 

@@ -56,7 +56,7 @@ class ExpressionEditorTextfield extends React.Component {
     onError: PropTypes.func.isRequired,
     startRule: PropTypes.string.isRequired,
     onBlankChange: PropTypes.func,
-    helpTextTarget: PropTypes.instanceOf(Element).isRequired,
+    helpTextTarget: PropTypes.instanceOf(Element),
   };
 
   static defaultProps = {

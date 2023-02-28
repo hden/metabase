@@ -40,6 +40,16 @@ class DatabaseInner extends Base {
   // Only appears in  GET /api/database/:id
   "can-manage"?: boolean;
 
+  constructor(object) {
+    super(object);
+
+    if (window.IS_STORYBOOK) {
+      for (const property in object) {
+        this[property] = object[property];
+      }
+    }
+  }
+
   getPlainObject(): IDatabase {
     return this._plainObject;
   }
@@ -180,36 +190,6 @@ class DatabaseInner extends Base {
   /** Returns a database containing only the saved questions from the same database, if any */
   savedQuestionsDatabase() {
     return this.metadata.databasesList().find(db => db.is_saved_questions);
-  }
-
-  /**
-   * @private
-   * @param {number} id
-   * @param {string} name
-   * @param {?string} description
-   * @param {Table[]} tables
-   * @param {Schema[]} schemas
-   * @param {Metadata} metadata
-   * @param {boolean} auto_run_queries
-   */
-
-  /* istanbul ignore next */
-  _constructor(
-    id,
-    name,
-    description,
-    tables,
-    schemas,
-    metadata,
-    auto_run_queries,
-  ) {
-    this.id = id;
-    this.name = name;
-    this.description = description;
-    this.tables = tables;
-    this.schemas = schemas;
-    this.metadata = metadata;
-    this.auto_run_queries = auto_run_queries;
   }
 }
 
