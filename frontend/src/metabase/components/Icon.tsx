@@ -71,7 +71,7 @@ export type IconProps = {
   width?: string | number;
   height?: string | number;
   scale?: string | number;
-  tooltip?: string;
+  tooltip?: string | null;
   onClick?: (event: React.MouseEvent<HTMLImageElement | SVGElement>) => void;
 
   style?: React.CSSProperties;

@@ -3,6 +3,9 @@ import cx from "classnames";
 import { t } from "ttag";
 import styled from "@emotion/styled";
 import { isDef } from "metabase/lib/language";
+import { color } from "metabase/lib/colors";
+import Icon from "metabase/components/Icon";
+import Tooltip from "metabase/core/components/Tooltip";
 import { isExpression } from "metabase-lib/expressions";
 import StructuredQuery from "metabase-lib/queries/StructuredQuery";
 import ExpressionEditorTextfield from "./ExpressionEditorTextfield";
@@ -51,8 +54,19 @@ const ExpressionWidget = (props: ExpressionWidgetProps): JSX.Element => {
 
   return (
     <Wrapper>
-      <div className="p2">
-        <div className="h5 text-uppercase text-light text-bold">{t`Expression`}</div>
+      <div className="p3 pb4">
+        <div className="h5 text-uppercase text-light text-bold">
+          {t`Expression`}
+          <Tooltip
+            tooltip={t`You can reference columns here in functions or equations, like: floor([Price] - [Discount]).`}
+            placement="right"
+            maxWidth={332}
+          >
+            <IconWrapper>
+              <StyledIcon name="info" />
+            </IconWrapper>
+          </Tooltip>
+        </div>
         <div ref={helpTextTargetRef}>
           <ExpressionEditorTextfield
             helpTextTarget={helpTextTargetRef.current}
@@ -71,7 +85,7 @@ const ExpressionWidget = (props: ExpressionWidgetProps): JSX.Element => {
         <div className="mt3 h5 text-uppercase text-light text-bold">{t`Name`}</div>
         <div>
           <input
-            className="my1 input block full"
+            className="mt1 input block full"
             type="text"
             value={name}
             placeholder={t`Something nice and descriptive`}
@@ -85,7 +99,7 @@ const ExpressionWidget = (props: ExpressionWidgetProps): JSX.Element => {
         </div>
       </div>
 
-      <div className="mt2 p2 border-top flex flex-row align-center justify-between">
+      <div className="p3 border-top flex flex-row align-center justify-between">
         <div className="ml-auto">
           <button
             className="Button"
@@ -119,6 +133,20 @@ const ExpressionWidget = (props: ExpressionWidgetProps): JSX.Element => {
 
 const Wrapper = styled.div`
   width: 445px;
+`;
+
+const IconWrapper = styled.span`
+  margin-left: 4px;
+  cursor: help;
+
+  &:hover {
+    color: ${color("text-dark")};
+  }
+`;
+
+const StyledIcon = styled(Icon)`
+  width: 10px;
+  height: 10px;
 `;
 
 export default ExpressionWidget;
